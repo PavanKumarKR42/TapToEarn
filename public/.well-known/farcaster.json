@@ -1,0 +1,30 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+   "baseBuilder": {
+    "allowedAddresses":""
+   },
+  "miniapp": {
+    "name": "Tap To Earn",
+    "version": "1",
+    "iconUrl": "https://portfolio-xof8.vercel.app/splash.png",
+    "homeUrl": "https://portfolio-xof8.vercel.app/",
+    "imageUrl": "https://portfolio-xof8.vercel.app/image.png",
+    "buttonTitle": "Tap!",
+    "splashImageUrl": "https://portfolio-xof8.vercel.app/splash.png",
+    "splashBackgroundColor": "#FFFF66",
+    "webhookUrl": "",
+    "subtitle": "Tap to earn my creator coin",
+    "description": "TapToEarn: A fun on-chain tap game on Base. Earn tokens for every tap and claim rewards instantly, simple, transparent, and fair.",
+    "primaryCategory": "game",
+    "tags": [
+      "base",
+      "tap",
+      "earn",
+      "free"
+    ]
+  }
+}
