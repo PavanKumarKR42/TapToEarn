@@ -4,6 +4,7 @@ window.Buffer = Buffer;
 window.global = window.global || window;
 window.process = window.process || { env: {} };
 
+import { sdk } from '@farcaster/miniapp-sdk';
 import {
   createConfig,
   connect,
@@ -14,13 +15,15 @@ import {
   waitForTransactionReceipt,
   http
 } from '@wagmi/core';
-import { celo } from '@wagmi/core/chains';
+import { base } from '@wagmi/core/chains';
+import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { createAppKit } from '@reown/appkit';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import confetti from 'canvas-confetti';
 
 // Configuration
-const PROJECT_ID = 'e0dd881bad824ac3418617434a79f917';
+const PROJECT_ID = '038aaf03f1ff1d3e5a13b983631ec5ea'; // Your project ID
+const MINIAPP_URL = window.location.origin; // Your deployment URL
 
 // DOM Elements
 const connectBtn = document.getElementById('connectBtn');
@@ -48,8 +51,64 @@ let tapCount = 0;
 let sessionStartTime = null;
 let timerInterval = null;
 let rewardPerTap = 0.001;
+let isFarcasterEnvironment = false;
+let lastClaimAmount = 0;
 
-// Load contract details
+// Farcaster Detection
+async function isFarcasterEmbed() {
+  return Promise.race([
+    (async () => {
+      const isIframe = window.self !== window.top;
+      const hasSDK = typeof sdk !== 'undefined';
+      
+      if (!isIframe || !hasSDK) return false;
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const isSdkReady = sdk.context !== undefined && sdk.context !== null;
+      
+      console.log('Farcaster Detection:', {
+        isIframe,
+        hasSDK,
+        isSdkReady,
+        hasValidContext: hasSDK && sdk.context?.user?.fid !== undefined
+      });
+      
+      return isIframe && hasSDK && isSdkReady;
+    })(),
+    new Promise(resolve => setTimeout(() => resolve(false), 500))
+  ]);
+}
+
+// Initialize Farcaster SDK
+async function initializeFarcasterSDK() {
+  try {
+    console.log('Initializing Farcaster SDK...');
+    await sdk.actions.ready({ disableNativeGestures: true });
+    console.log('✅ Farcaster SDK ready');
+    
+    // Add delay before prompting to add mini app
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Prompt to add mini app (one-time)
+    const hasPromptedAddApp = localStorage.getItem('hasPromptedAddApp');
+    if (!hasPromptedAddApp && sdk?.actions?.addMiniApp) {
+      try {
+        await sdk.actions.addMiniApp();
+        localStorage.setItem('hasPromptedAddApp', 'true');
+        console.log('✅ Add mini app prompt shown');
+      } catch (e) {
+        console.log('User declined add mini app or already added');
+      }
+    }
+    
+    return true;
+  } catch (e) {
+    console.log('Farcaster SDK initialization failed:', e);
+    return false;
+  }
+}
+
+// Load Contract
 async function loadContract() {
   try {
     const response = await fetch('./contract.json');
@@ -64,35 +123,6 @@ async function loadContract() {
   }
 }
 
-// Initialize Wagmi
-const wagmiAdapter = new WagmiAdapter({
-  networks: [celo],
-  projectId: PROJECT_ID,
-  ssr: false
-});
-
-wagmiConfig = wagmiAdapter.wagmiConfig;
-
-// Create AppKit Modal
-modal = createAppKit({
-  adapters: [wagmiAdapter],
-  networks: [celo],
-  projectId: PROJECT_ID,
-  metadata: {
-    name: 'Tap to Earn',
-    description: 'Tap to earn tokens on Celo!',
-    url: window.location.origin,
-    icons: ['https://assets-global.website-files.com/64b589417d470659a8508e6e/65f97cc1c34a2608c704259b_celo.png']
-  },
-  features: {
-    analytics: true,
-  },
-  themeMode: 'dark',
-  themeVariables: {
-    '--w3m-accent': '#49dfb5',
-  }
-});
-
 // Status Helper
 function setStatus(msg, type = 'info') {
   statusBox.className = `status-box status-${type}`;
@@ -100,14 +130,14 @@ function setStatus(msg, type = 'info') {
   statusBox.textContent = `${icons[type] || ''} ${msg}`;
 }
 
-// Format Number Helper
+// Format Number
 function formatNumber(num, decimals = 3) {
   return Number(num).toFixed(decimals);
 }
 
 // Update Stats
 async function updateStats() {
-  if (!contractDetails || !userAddress) return;
+  if (!contractDetails || !userAddress || !wagmiConfig) return;
 
   try {
     // Get reward per tap
@@ -178,7 +208,7 @@ async function startSession() {
 
   } catch (e) {
     console.error('Start session error:', e);
-    setStatus(e.message || 'Failed to start session', 'error');
+    setStatus(getErrorMessage(e), 'error');
     startBtn.disabled = false;
   }
 }
@@ -186,6 +216,11 @@ async function startSession() {
 // Stop Session & Claim
 async function stopAndClaim() {
   if (!contractDetails || !userAddress || !sessionActive) return;
+  
+  if (tapCount === 0) {
+    setStatus('You need to tap at least once!', 'warning');
+    return;
+  }
 
   try {
     setStatus('Claiming rewards...', 'info');
@@ -211,7 +246,8 @@ async function stopAndClaim() {
 
     if (receipt.status === 'success') {
       const reward = tapCount * rewardPerTap;
-      setStatus(`🎉 Claimed ${formatNumber(reward)} tokens!`, 'success');
+      lastClaimAmount = reward;
+      setStatus(`🎉 Claimed ${formatNumber(reward)} tokens from ${tapCount} taps!`, 'success');
 
       // Epic confetti
       confetti({
@@ -220,6 +256,13 @@ async function stopAndClaim() {
         origin: { y: 0.6 },
         colors: ['#49dfb5', '#7dd3fc', '#fbbf24']
       });
+
+      // Cast to Farcaster if in miniapp
+      if (isFarcasterEnvironment) {
+        setTimeout(() => {
+          promptCastShare(tapCount, reward);
+        }, 2000);
+      }
 
       // Reset state
       sessionActive = false;
@@ -237,10 +280,35 @@ async function stopAndClaim() {
 
   } catch (e) {
     console.error('Claim error:', e);
-    setStatus(e.message || 'Failed to claim rewards', 'error');
+    setStatus(getErrorMessage(e), 'error');
     stopBtn.disabled = false;
     tapBtn.disabled = false;
     tapBtn.classList.remove('disabled');
+    if (sessionActive) {
+      startTimer();
+    }
+  }
+}
+
+// Prompt Cast Share (Farcaster)
+async function promptCastShare(taps, reward) {
+  if (!isFarcasterEnvironment || !sdk?.actions?.composeCast) return;
+
+  const text = `I just earned ${formatNumber(reward)} tokens by tapping ${taps} times! 💎\n\nTap to earn on Base:`;
+  const embedUrl = MINIAPP_URL;
+
+  try {
+    const result = await sdk.actions.composeCast({
+      text: text,
+      embeds: [embedUrl]
+    });
+
+    if (result?.cast) {
+      console.log('✅ Cast shared:', result.cast.hash);
+      setStatus('🎉 Shared to Farcaster!', 'success');
+    }
+  } catch (e) {
+    console.log('Cast cancelled or failed:', e);
   }
 }
 
@@ -256,13 +324,11 @@ function handleTap(event) {
   const potential = tapCount * rewardPerTap;
   potentialRewardEl.textContent = formatNumber(potential);
 
-  // Ripple effect
+  // Effects
   createRipple(event);
-
-  // Floating point
   createFloatingPoint(event);
 
-  // Haptic feedback (mobile)
+  // Haptic feedback
   if (navigator.vibrate) {
     navigator.vibrate(10);
   }
@@ -283,7 +349,6 @@ function createRipple(event) {
   ripple.style.top = `${y}px`;
 
   button.appendChild(ripple);
-
   setTimeout(() => ripple.remove(), 600);
 }
 
@@ -293,18 +358,18 @@ function createFloatingPoint(event) {
   point.className = 'floating-point';
   point.textContent = `+${formatNumber(rewardPerTap, 4)}`;
   
-  const rect = tapBtn.getBoundingClientRect();
   point.style.left = `${event.clientX}px`;
   point.style.top = `${event.clientY}px`;
   point.style.position = 'fixed';
 
   document.body.appendChild(point);
-
   setTimeout(() => point.remove(), 1000);
 }
 
 // Start Timer
 function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  
   timerInterval = setInterval(() => {
     if (!sessionStartTime) return;
 
@@ -317,7 +382,7 @@ function startTimer() {
 
     // Auto-stop at 5 minutes (300 seconds)
     if (seconds >= 300) {
-      setStatus('Maximum session time reached! Please claim.', 'warning');
+      setStatus('⏰ Maximum session time reached! Please claim.', 'warning');
       tapBtn.disabled = true;
       tapBtn.classList.add('disabled');
       clearInterval(timerInterval);
@@ -338,6 +403,54 @@ function createParticles() {
   }
 }
 
+// Error Message Helper
+function getErrorMessage(error) {
+  const msg = error.message || error.shortMessage || '';
+  
+  if (msg.includes('insufficient funds') || msg.includes('insufficient balance')) {
+    return 'Insufficient funds for gas fees';
+  } else if (msg.includes('User rejected') || msg.includes('user rejected')) {
+    return 'Transaction rejected';
+  } else if (msg.includes('Session not active')) {
+    return 'Please start a session first';
+  } else if (msg.includes('Session already active')) {
+    return 'You already have an active session';
+  }
+  
+  return error.shortMessage || 'Transaction failed';
+}
+
+// Initialize Wagmi
+const wagmiAdapter = new WagmiAdapter({
+  networks: [base],
+  projectId: PROJECT_ID,
+  ssr: false
+});
+
+wagmiConfig = wagmiAdapter.wagmiConfig;
+
+// Create AppKit Modal
+modal = createAppKit({
+  adapters: [wagmiAdapter],
+  networks: [base],
+  projectId: PROJECT_ID,
+  metadata: {
+    name: 'Tap to Earn',
+    description: 'Tap to earn tokens on Base!',
+    url: MINIAPP_URL,
+    icons: [`${MINIAPP_URL}/icon.png`]
+  },
+  features: {
+    analytics: true,
+    connectMethodsOrder: ["wallet"],
+  },
+  allWallets: 'SHOW',
+  themeMode: 'dark',
+  themeVariables: {
+    '--w3m-accent': '#49dfb5',
+  }
+});
+
 // Event Listeners
 connectBtn.addEventListener('click', () => {
   if (modal) modal.open();
@@ -347,7 +460,7 @@ startBtn.addEventListener('click', startSession);
 stopBtn.addEventListener('click', stopAndClaim);
 tapBtn.addEventListener('click', handleTap);
 
-// Watch Account
+// Watch Account Changes
 watchAccount(wagmiConfig, {
   onChange(account) {
     if (account.address && account.isConnected) {
@@ -361,7 +474,7 @@ watchAccount(wagmiConfig, {
       connectBtn.classList.add('hidden');
       actionButtons.classList.remove('hidden');
       
-      setStatus('Wallet connected! Click "Start Session" to begin.', 'success');
+      setStatus('✅ Wallet connected! Click "Start Session" to begin.', 'success');
       updateStats();
       
     } else {
@@ -369,27 +482,70 @@ watchAccount(wagmiConfig, {
       walletAddress.classList.add('hidden');
       connectBtn.classList.remove('hidden');
       actionButtons.classList.add('hidden');
+      sessionTimer.classList.add('hidden');
       setStatus('Connect your wallet to start tapping!', 'info');
+      
+      // Reset session if disconnected
+      if (sessionActive) {
+        sessionActive = false;
+        tapCount = 0;
+        if (timerInterval) clearInterval(timerInterval);
+      }
     }
   }
 });
 
-// Initialize
+// Initialize App
 (async () => {
-  const loaded = await loadContract();
-  if (loaded) {
+  try {
+    // Initialize Farcaster SDK
+    isFarcasterEnvironment = await isFarcasterEmbed();
+    
+    if (isFarcasterEnvironment) {
+      console.log('🎯 Running in Farcaster mini app');
+      await initializeFarcasterSDK();
+      
+      // Try Farcaster auto-connect
+      try {
+        const farcasterConnector = wagmiConfig.connectors.find(c => c.id === 'farcasterMiniApp');
+        if (farcasterConnector) {
+          const conn = await connect(wagmiConfig, { connector: farcasterConnector });
+          userAddress = conn.accounts[0];
+          console.log('✅ Auto-connected via Farcaster:', userAddress);
+        }
+      } catch (e) {
+        console.log('Farcaster auto-connect failed:', e);
+      }
+    } else {
+      console.log('🌐 Running in browser');
+    }
+    
+    // Load contract
+    const loaded = await loadContract();
+    if (!loaded) {
+      setStatus('❌ Failed to load contract. Please refresh.', 'error');
+      return;
+    }
+    
+    // Check existing connection
     const currentAccount = getAccount(wagmiConfig);
     if (currentAccount.isConnected && currentAccount.address) {
       userAddress = currentAccount.address;
       const shortAddr = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
       walletAddress.textContent = `Connected: ${shortAddr}`;
       walletAddress.classList.remove('hidden');
+      walletAddress.onclick = () => modal.open();
       connectBtn.classList.add('hidden');
       actionButtons.classList.remove('hidden');
-      setStatus('Wallet connected! Click "Start Session" to begin.', 'success');
+      setStatus('✅ Wallet connected! Click "Start Session" to begin.', 'success');
       await updateStats();
     }
+    
+    // Create particles
+    createParticles();
+    
+  } catch (error) {
+    console.error('Initialization error:', error);
+    setStatus('Failed to initialize app. Please refresh.', 'error');
   }
-  
-  createParticles();
 })();
