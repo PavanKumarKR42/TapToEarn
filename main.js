@@ -22,8 +22,8 @@ import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import confetti from 'canvas-confetti';
 
 // Configuration
-const PROJECT_ID = '038aaf03f1ff1d3e5a13b983631ec5ea'; // Your project ID
-const MINIAPP_URL = window.location.origin; // Your deployment URL
+const PROJECT_ID = '038aaf03f1ff1d3e5a13b983631ec5ea';
+const MINIAPP_URL = window.location.origin;
 
 // DOM Elements
 const connectBtn = document.getElementById('connectBtn');
@@ -50,7 +50,7 @@ let sessionActive = false;
 let tapCount = 0;
 let sessionStartTime = null;
 let timerInterval = null;
-let rewardPerTap = 0.001;
+let rewardPerTap = 0.001; // Fixed reward per tap
 let isFarcasterEnvironment = false;
 let lastClaimAmount = 0;
 
@@ -86,10 +86,8 @@ async function initializeFarcasterSDK() {
     await sdk.actions.ready({ disableNativeGestures: true });
     console.log('✅ Farcaster SDK ready');
     
-    // Add delay before prompting to add mini app
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Prompt to add mini app (one-time)
     const hasPromptedAddApp = localStorage.getItem('hasPromptedAddApp');
     if (!hasPromptedAddApp && sdk?.actions?.addMiniApp) {
       try {
@@ -97,7 +95,7 @@ async function initializeFarcasterSDK() {
         localStorage.setItem('hasPromptedAddApp', 'true');
         console.log('✅ Add mini app prompt shown');
       } catch (e) {
-        console.log('User declined add mini app or already added');
+        console.log('User declined add mini app');
       }
     }
     
@@ -140,77 +138,53 @@ async function updateStats() {
   if (!contractDetails || !userAddress || !wagmiConfig) return;
 
   try {
-    // Get reward per tap
-    const rewardWei = await readContract(wagmiConfig, {
+    // Get token address
+    const tokenAddress = await readContract(wagmiConfig, {
       address: contractDetails.address,
       abi: contractDetails.abi,
-      functionName: 'rewardPerTap'
+      functionName: 'token'
     });
-    rewardPerTap = Number(rewardWei) / 1e18;
-    rewardPerTapEl.textContent = formatNumber(rewardPerTap, 4);
-
-    // Get total claimed
-    const claimed = await readContract(wagmiConfig, {
-      address: contractDetails.address,
-      abi: contractDetails.abi,
-      functionName: 'totalClaimed',
-      args: [userAddress]
-    });
-    const claimedTokens = Number(claimed) / 1e18;
-    totalClaimedEl.textContent = formatNumber(claimedTokens);
-
+    
+    console.log('Token address:', tokenAddress);
+    
     // Update potential reward
     const potential = tapCount * rewardPerTap;
     potentialRewardEl.textContent = formatNumber(potential);
+
+    // Note: totalClaimed would require tracking via events or off-chain storage
+    // For now, we'll keep it as is or use localStorage
+    const storedClaimed = localStorage.getItem(`totalClaimed_${userAddress}`) || '0';
+    totalClaimedEl.textContent = formatNumber(parseFloat(storedClaimed));
 
   } catch (e) {
     console.error('Failed to update stats:', e);
   }
 }
 
-// Start Session
-async function startSession() {
-  if (!contractDetails || !userAddress) return;
+// Start Session (Client-side only - no contract call)
+function startSession() {
+  if (!userAddress) return;
 
-  try {
-    setStatus('Starting session...', 'info');
-    startBtn.disabled = true;
+  sessionActive = true;
+  tapCount = 0;
+  sessionStartTime = Date.now();
 
-    const hash = await writeContract(wagmiConfig, {
-      address: contractDetails.address,
-      abi: contractDetails.abi,
-      functionName: 'startSession'
-    });
+  // Enable tapping
+  tapBtn.disabled = false;
+  tapBtn.classList.remove('disabled');
+  stopBtn.disabled = false;
+  startBtn.disabled = true;
 
-    setStatus('Confirming transaction...', 'info');
-    await waitForTransactionReceipt(wagmiConfig, { hash });
+  // Start timer
+  sessionTimer.classList.remove('hidden');
+  startTimer();
 
-    sessionActive = true;
-    tapCount = 0;
-    sessionStartTime = Date.now();
-
-    // Enable tapping
-    tapBtn.disabled = false;
-    tapBtn.classList.remove('disabled');
-    stopBtn.disabled = false;
-    startBtn.disabled = true;
-
-    // Start timer
-    sessionTimer.classList.remove('hidden');
-    startTimer();
-
-    setStatus('Session started! Start tapping! 🎯', 'success');
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-
-  } catch (e) {
-    console.error('Start session error:', e);
-    setStatus(getErrorMessage(e), 'error');
-    startBtn.disabled = false;
-  }
+  setStatus('Session started! Start tapping! 🎯', 'success');
+  confetti({
+    particleCount: 100,
+    spread: 70,
+    origin: { y: 0.6 }
+  });
 }
 
 // Stop Session & Claim
@@ -234,6 +208,7 @@ async function stopAndClaim() {
       timerInterval = null;
     }
 
+    // Call claim function with tap count
     const hash = await writeContract(wagmiConfig, {
       address: contractDetails.address,
       abi: contractDetails.abi,
@@ -247,6 +222,12 @@ async function stopAndClaim() {
     if (receipt.status === 'success') {
       const reward = tapCount * rewardPerTap;
       lastClaimAmount = reward;
+      
+      // Update localStorage total
+      const currentTotal = parseFloat(localStorage.getItem(`totalClaimed_${userAddress}`) || '0');
+      const newTotal = currentTotal + reward;
+      localStorage.setItem(`totalClaimed_${userAddress}`, newTotal.toString());
+      
       setStatus(`🎉 Claimed ${formatNumber(reward)} tokens from ${tapCount} taps!`, 'success');
 
       // Epic confetti
@@ -254,7 +235,7 @@ async function stopAndClaim() {
         particleCount: 200,
         spread: 100,
         origin: { y: 0.6 },
-        colors: ['#49dfb5', '#7dd3fc', '#fbbf24']
+        colors: ['#0052FF', '#5B8DEF', '#fbbf24']
       });
 
       // Cast to Farcaster if in miniapp
@@ -294,7 +275,7 @@ async function stopAndClaim() {
 async function promptCastShare(taps, reward) {
   if (!isFarcasterEnvironment || !sdk?.actions?.composeCast) return;
 
-  const text = `I just earned ${formatNumber(reward)} tokens by tapping ${taps} times! 💎\n\nTap to earn on Base:`;
+  const text = `I just earned ${formatNumber(reward)} tokens by tapping ${taps} times! 💎⚡\n\nTap to earn on Base:`;
   const embedUrl = MINIAPP_URL;
 
   try {
@@ -411,10 +392,8 @@ function getErrorMessage(error) {
     return 'Insufficient funds for gas fees';
   } else if (msg.includes('User rejected') || msg.includes('user rejected')) {
     return 'Transaction rejected';
-  } else if (msg.includes('Session not active')) {
-    return 'Please start a session first';
-  } else if (msg.includes('Session already active')) {
-    return 'You already have an active session';
+  } else if (msg.includes('Insufficient contract balance')) {
+    return 'Contract has insufficient token balance';
   }
   
   return error.shortMessage || 'Transaction failed';
@@ -447,7 +426,7 @@ modal = createAppKit({
   allWallets: 'SHOW',
   themeMode: 'dark',
   themeVariables: {
-    '--w3m-accent': '#49dfb5',
+    '--w3m-accent': '#0052FF',
   }
 });
 
