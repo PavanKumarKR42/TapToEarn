@@ -1,8 +1,8 @@
 {
   "accountAssociation": {
-    "header": "",
-    "payload": "",
-    "signature": ""
+    "header": "eyJmaWQiOjI4NDcxMywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDBDN2FmZDk5OEY1MDY5ZkM1RTMxZWVmREM2RkZBODdlMzExYWIyM0MifQ",
+    "payload": "eyJkb21haW4iOiJwb3J0Zm9saW8teG9mOC52ZXJjZWwuYXBwIn0",
+    "signature": "v68ldzov6ft6QXz+a/YuZqD6pMLKCU65voaA35IRtFgj0I11TM05ypfPfl312zUiMkPPVsHI+6ntlx4KmXJfYxw="
   },
    "baseBuilder": {
     "allowedAddresses":""
@@ -19,7 +19,7 @@
     "webhookUrl": "https://portfolio-xof8.vercel.app/api/webhook",
     "subtitle": "Tap to earn my creator coin",
     "description": "TapToEarn: A fun on-chain tap game on Base. Earn tokens for every tap and claim rewards instantly, simple, transparent, and fair.",
-    "primaryCategory": "game",
+    "primaryCategory": "games",
     "tags": [
       "base",
       "tap",
