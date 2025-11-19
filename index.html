@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tap to Earn - Celo</title>
+  <meta name="description" content="Tap to earn tokens on Celo blockchain!" />
+  
+  <link rel="icon" type="image/png" href="https://assets-global.website-files.com/64b589417d470659a8508e6e/65f97cc1c34a2608c704259b_celo.png">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      color: white;
+      font-family: 'Orbitron', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+    
+    .container {
+      width: 100%;
+      max-width: 500px;
+      text-align: center;
+    }
+    
+    h1 {
+      font-size: 2.5rem;
+      margin: 20px 0;
+      background: linear-gradient(90deg, #49dfb5, #7dd3fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 900;
+    }
+    
+    .subtitle {
+      color: #9ca3af;
+      font-size: 1rem;
+      margin-bottom: 30px;
+    }
+    
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+    
+    .stat-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid rgba(73, 223, 181, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .stat-label {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: #49dfb5;
+    }
+    
+    /* Tap Button */
+    .tap-area {
+      position: relative;
+      margin: 40px 0;
+    }
+    
+    .tap-button {
+      width: 250px;
+      height: 250px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #49dfb5, #10b981);
+      border: 5px solid rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      font-size: 2rem;
+      font-weight: bold;
+      color: #0f0f0f;
+      transition: all 0.1s;
+      box-shadow: 0 0 40px rgba(73, 223, 181, 0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .tap-button:active {
+      transform: scale(0.95);
+      box-shadow: 0 0 60px rgba(73, 223, 181, 0.8);
+    }
+    
+    .tap-button.disabled {
+      background: #6b7280;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    
+    .tap-button.disabled:active {
+      transform: none;
+    }
+    
+    .tap-count {
+      font-size: 3rem;
+      font-weight: 900;
+    }
+    
+    .tap-label {
+      font-size: 1rem;
+      margin-top: 8px;
+    }
+    
+    /* Ripple Effect */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.6);
+      pointer-events: none;
+      animation: ripple-animation 0.6s ease-out;
+    }
+    
+    @keyframes ripple-animation {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+    
+    /* Floating Points */
+    .floating-point {
+      position: absolute;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #fbbf24;
+      pointer-events: none;
+      animation: float-up 1s ease-out forwards;
+      z-index: 100;
+    }
+    
+    @keyframes float-up {
+      0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(-100px) scale(1.5);
+        opacity: 0;
+      }
+    }
+    
+    /* Action Buttons */
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+      margin: 30px 0;
+    }
+    
+    .action-button {
+      flex: 1;
+      padding: 16px 24px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-family: 'Orbitron', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .start-button {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+    }
+    
+    .start-button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px rgba(16, 185, 129, 0.6);
+    }
+    
+    .stop-button {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+      box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+    }
+    
+    .stop-button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px rgba(239, 68, 68, 0.6);
+    }
+    
+    .action-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
+    .connect-button {
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      color: white;
+      box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+      width: 100%;
+    }
+    
+    .connect-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px rgba(139, 92, 246, 0.6);
+    }
+    
+    /* Status Box */
+    .status-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid rgba(73, 223, 181, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 20px 0;
+      backdrop-filter: blur(10px);
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .status-info { border-color: #3b82f6; }
+    .status-success { border-color: #10b981; }
+    .status-error { border-color: #ef4444; }
+    .status-warning { border-color: #f59e0b; }
+    
+    /* Wallet Address */
+    .wallet-address {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.9rem;
+      margin: 20px 0;
+      cursor: pointer;
+      transition: all 0.3s;
+      border: 1px solid rgba(73, 223, 181, 0.3);
+    }
+    
+    .wallet-address:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
+    
+    /* Timer */
+    .session-timer {
+      font-size: 1.5rem;
+      color: #fbbf24;
+      margin: 20px 0;
+      font-weight: bold;
+    }
+    
+    /* Loading Spinner */
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top: 3px solid #49dfb5;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      margin: 0 8px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+    
+    /* Responsive */
+    @media (max-width: 480px) {
+      h1 {
+        font-size: 2rem;
+      }
+      
+      .tap-button {
+        width: 200px;
+        height: 200px;
+      }
+      
+      .tap-count {
+        font-size: 2.5rem;
+      }
+      
+      .stat-value {
+        font-size: 1.5rem;
+      }
+      
+      .action-button {
+        padding: 12px 16px;
+        font-size: 0.9rem;
+      }
+    }
+    
+    /* Particles Background */
+    .particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      opacity: 0.3;
+    }
+    
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: #49dfb5;
+      border-radius: 50%;
+      animation: float 20s infinite;
+    }
+    
+    @keyframes float {
+      0%, 100% {
+        transform: translateY(0) translateX(0);
+      }
+      50% {
+        transform: translateY(-100vh) translateX(50px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Particles Background -->
+  <div class="particles" id="particles"></div>
+
+  <div class="container">
+    <h1>💎 TAP TO EARN</h1>
+    <p class="subtitle">Tap the button and claim your rewards!</p>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Current Taps</div>
+        <div class="stat-value" id="currentTaps">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Potential Reward</div>
+        <div class="stat-value" id="potentialReward">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Claimed</div>
+        <div class="stat-value" id="totalClaimed">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Reward Per Tap</div>
+        <div class="stat-value" id="rewardPerTap">0.001</div>
+      </div>
+    </div>
+
+    <!-- Session Timer -->
+    <div class="session-timer hidden" id="sessionTimer">
+      ⏱️ Session: <span id="timerDisplay">00:00</span>
+    </div>
+
+    <!-- Wallet Address -->
+    <div class="wallet-address hidden" id="walletAddress"></div>
+
+    <!-- Connect Button -->
+    <button class="action-button connect-button" id="connectBtn">
+      Connect Wallet
+    </button>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons hidden" id="actionButtons">
+      <button class="action-button start-button" id="startBtn">
+        🚀 Start Session
+      </button>
+      <button class="action-button stop-button" id="stopBtn" disabled>
+        ⛔ Stop & Claim
+      </button>
+    </div>
+
+    <!-- Tap Button -->
+    <div class="tap-area">
+      <button class="tap-button disabled" id="tapBtn" disabled>
+        <div class="tap-count" id="tapCount">0</div>
+        <div class="tap-label">TAPS</div>
+      </button>
+    </div>
+
+    <!-- Status Box -->
+    <div class="status-box status-info" id="statusBox">
+      Connect your wallet to start tapping!
+    </div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
