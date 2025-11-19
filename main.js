@@ -23,7 +23,7 @@ import confetti from 'canvas-confetti';
 
 // Configuration
 const PROJECT_ID = '038aaf03f1ff1d3e5a13b983631ec5ea';
-const MINIAPP_URL = 'https://farcaster.xyz/miniapps/h-NY-c20XzRk/tap-to-earn';
+const MINIAPP_URL = window.location.origin;
 
 // DOM Elements
 const connectBtn = document.getElementById('connectBtn');
@@ -291,7 +291,7 @@ function createRipple(event) {
 function createFloatingPoint(event) {
   const point = document.createElement('div');
   point.className = 'floating-point';
-  point.textContent = `+${formatNumber(rewardPerTap, 4)}`;
+  point.textContent = `+${formatNumber(rewardPerTap, 0)}`; // Show whole numbers
   
   point.style.left = `${event.clientX}px`;
   point.style.top = `${event.clientY}px`;
