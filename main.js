@@ -47,10 +47,10 @@ let userAddress = null;
 let wagmiConfig = null;
 let modal = null;
 let sessionActive = false;
-let tapCount = 0;
+let tapCount = 1;
 let sessionStartTime = null;
 let timerInterval = null;
-let rewardPerTap = 0.001;
+let rewardPerTap = 1;
 let isFarcasterEnvironment = false;
 let lastClaimAmount = 0;
 
