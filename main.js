@@ -23,7 +23,7 @@ import confetti from 'canvas-confetti';
 
 // Configuration
 const PROJECT_ID = '038aaf03f1ff1d3e5a13b983631ec5ea';
-const MINIAPP_URL = window.location.origin;
+const MINIAPP_URL = 'https://farcaster.xyz/miniapps/h-NY-c20XzRk/tap-to-earn';
 
 // DOM Elements
 const connectBtn = document.getElementById('connectBtn');
@@ -47,10 +47,10 @@ let userAddress = null;
 let wagmiConfig = null;
 let modal = null;
 let sessionActive = false;
-let tapCount = 1;
+let tapCount = 0;
 let sessionStartTime = null;
 let timerInterval = null;
-let rewardPerTap = 1;
+let rewardPerTap = 1.0; // Default reward per tap
 let isFarcasterEnvironment = false;
 let lastClaimAmount = 0;
 
@@ -291,7 +291,7 @@ function createRipple(event) {
 function createFloatingPoint(event) {
   const point = document.createElement('div');
   point.className = 'floating-point';
-  point.textContent = `+${formatNumber(rewardPerTap, 0)}`; // Show whole numbers
+  point.textContent = `+${formatNumber(rewardPerTap, 4)}`;
   
   point.style.left = `${event.clientX}px`;
   point.style.top = `${event.clientY}px`;
