@@ -23,7 +23,7 @@ import confetti from 'canvas-confetti';
 
 // Configuration
 const PROJECT_ID = '038aaf03f1ff1d3e5a13b983631ec5ea';
-const MINIAPP_URL = window.location.origin;
+const MINIAPP_URL = 'https://farcaster.xyz/miniapps/h-NY-c20XzRk/tap-to-earn';
 
 // DOM Elements
 const connectBtn = document.getElementById('connectBtn');
@@ -50,61 +50,40 @@ let sessionActive = false;
 let tapCount = 0;
 let sessionStartTime = null;
 let timerInterval = null;
-let rewardPerTap = 0.001; // Fixed reward per tap
+let rewardPerTap = 0.001;
 let isFarcasterEnvironment = false;
 let lastClaimAmount = 0;
 
-// Farcaster Detection
-async function isFarcasterEmbed() {
-  return Promise.race([
-    (async () => {
-      const isIframe = window.self !== window.top;
-      const hasSDK = typeof sdk !== 'undefined';
-      
-      if (!isIframe || !hasSDK) return false;
-      
-      await new Promise(resolve => setTimeout(resolve, 100));
-      const isSdkReady = sdk.context !== undefined && sdk.context !== null;
-      
-      console.log('Farcaster Detection:', {
-        isIframe,
-        hasSDK,
-        isSdkReady,
-        hasValidContext: hasSDK && sdk.context?.user?.fid !== undefined
-      });
-      
-      return isIframe && hasSDK && isSdkReady;
-    })(),
-    new Promise(resolve => setTimeout(() => resolve(false), 500))
-  ]);
-}
+// Initialize Wagmi FIRST (before SDK)
+const wagmiAdapter = new WagmiAdapter({
+  networks: [base],
+  projectId: PROJECT_ID,
+  ssr: false
+});
 
-// Initialize Farcaster SDK
-async function initializeFarcasterSDK() {
-  try {
-    console.log('Initializing Farcaster SDK...');
-    await sdk.actions.ready({ disableNativeGestures: true });
-    console.log('✅ Farcaster SDK ready');
-    
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const hasPromptedAddApp = localStorage.getItem('hasPromptedAddApp');
-    if (!hasPromptedAddApp && sdk?.actions?.addMiniApp) {
-      try {
-        await sdk.actions.addMiniApp();
-        localStorage.setItem('hasPromptedAddApp', 'true');
-        console.log('✅ Add mini app prompt shown');
-      } catch (e) {
-        console.log('User declined add mini app');
-      }
-    }
-    
-    return true;
-  } catch (e) {
-    console.log('Farcaster SDK initialization failed:', e);
-    return false;
+wagmiConfig = wagmiAdapter.wagmiConfig;
+
+// Create AppKit Modal
+modal = createAppKit({
+  adapters: [wagmiAdapter],
+  networks: [base],
+  projectId: PROJECT_ID,
+  metadata: {
+    name: 'Tap to Earn',
+    description: 'Tap to earn tokens on Base!',
+    url: MINIAPP_URL,
+    icons: [`${MINIAPP_URL}/icon.png`]
+  },
+  features: {
+    analytics: true,
+    connectMethodsOrder: ["wallet"],
+  },
+  allWallets: 'SHOW',
+  themeMode: 'dark',
+  themeVariables: {
+    '--w3m-accent': '#0052FF',
   }
-}
+});
 
 // Load Contract
 async function loadContract() {
@@ -138,30 +117,17 @@ async function updateStats() {
   if (!contractDetails || !userAddress || !wagmiConfig) return;
 
   try {
-    // Get token address
-    const tokenAddress = await readContract(wagmiConfig, {
-      address: contractDetails.address,
-      abi: contractDetails.abi,
-      functionName: 'token'
-    });
-    
-    console.log('Token address:', tokenAddress);
-    
-    // Update potential reward
     const potential = tapCount * rewardPerTap;
     potentialRewardEl.textContent = formatNumber(potential);
 
-    // Note: totalClaimed would require tracking via events or off-chain storage
-    // For now, we'll keep it as is or use localStorage
     const storedClaimed = localStorage.getItem(`totalClaimed_${userAddress}`) || '0';
     totalClaimedEl.textContent = formatNumber(parseFloat(storedClaimed));
-
   } catch (e) {
     console.error('Failed to update stats:', e);
   }
 }
 
-// Start Session (Client-side only - no contract call)
+// Start Session
 function startSession() {
   if (!userAddress) return;
 
@@ -169,13 +135,11 @@ function startSession() {
   tapCount = 0;
   sessionStartTime = Date.now();
 
-  // Enable tapping
   tapBtn.disabled = false;
   tapBtn.classList.remove('disabled');
   stopBtn.disabled = false;
   startBtn.disabled = true;
 
-  // Start timer
   sessionTimer.classList.remove('hidden');
   startTimer();
 
@@ -202,13 +166,11 @@ async function stopAndClaim() {
     tapBtn.disabled = true;
     tapBtn.classList.add('disabled');
 
-    // Stop timer
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;
     }
 
-    // Call claim function with tap count
     const hash = await writeContract(wagmiConfig, {
       address: contractDetails.address,
       abi: contractDetails.abi,
@@ -223,14 +185,12 @@ async function stopAndClaim() {
       const reward = tapCount * rewardPerTap;
       lastClaimAmount = reward;
       
-      // Update localStorage total
       const currentTotal = parseFloat(localStorage.getItem(`totalClaimed_${userAddress}`) || '0');
       const newTotal = currentTotal + reward;
       localStorage.setItem(`totalClaimed_${userAddress}`, newTotal.toString());
       
       setStatus(`🎉 Claimed ${formatNumber(reward)} tokens from ${tapCount} taps!`, 'success');
 
-      // Epic confetti
       confetti({
         particleCount: 200,
         spread: 100,
@@ -238,14 +198,12 @@ async function stopAndClaim() {
         colors: ['#0052FF', '#5B8DEF', '#fbbf24']
       });
 
-      // Cast to Farcaster if in miniapp
       if (isFarcasterEnvironment) {
         setTimeout(() => {
           promptCastShare(tapCount, reward);
         }, 2000);
       }
 
-      // Reset state
       sessionActive = false;
       tapCount = 0;
       currentTapsEl.textContent = '0';
@@ -255,7 +213,6 @@ async function stopAndClaim() {
       startBtn.disabled = false;
       stopBtn.disabled = true;
 
-      // Update stats
       await updateStats();
     }
 
@@ -271,7 +228,7 @@ async function stopAndClaim() {
   }
 }
 
-// Prompt Cast Share (Farcaster)
+// Prompt Cast Share
 async function promptCastShare(taps, reward) {
   if (!isFarcasterEnvironment || !sdk?.actions?.composeCast) return;
 
@@ -301,15 +258,12 @@ function handleTap(event) {
   currentTapsEl.textContent = tapCount;
   tapCountEl.textContent = tapCount;
 
-  // Update potential reward
   const potential = tapCount * rewardPerTap;
   potentialRewardEl.textContent = formatNumber(potential);
 
-  // Effects
   createRipple(event);
   createFloatingPoint(event);
 
-  // Haptic feedback
   if (navigator.vibrate) {
     navigator.vibrate(10);
   }
@@ -361,7 +315,6 @@ function startTimer() {
 
     timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-    // Auto-stop at 5 minutes (300 seconds)
     if (seconds >= 300) {
       setStatus('⏰ Maximum session time reached! Please claim.', 'warning');
       tapBtn.disabled = true;
@@ -399,37 +352,6 @@ function getErrorMessage(error) {
   return error.shortMessage || 'Transaction failed';
 }
 
-// Initialize Wagmi
-const wagmiAdapter = new WagmiAdapter({
-  networks: [base],
-  projectId: PROJECT_ID,
-  ssr: false
-});
-
-wagmiConfig = wagmiAdapter.wagmiConfig;
-
-// Create AppKit Modal
-modal = createAppKit({
-  adapters: [wagmiAdapter],
-  networks: [base],
-  projectId: PROJECT_ID,
-  metadata: {
-    name: 'Tap to Earn',
-    description: 'Tap to earn tokens on Base!',
-    url: MINIAPP_URL,
-    icons: [`${MINIAPP_URL}/icon.png`]
-  },
-  features: {
-    analytics: true,
-    connectMethodsOrder: ["wallet"],
-  },
-  allWallets: 'SHOW',
-  themeMode: 'dark',
-  themeVariables: {
-    '--w3m-accent': '#0052FF',
-  }
-});
-
 // Event Listeners
 connectBtn.addEventListener('click', () => {
   if (modal) modal.open();
@@ -464,7 +386,6 @@ watchAccount(wagmiConfig, {
       sessionTimer.classList.add('hidden');
       setStatus('Connect your wallet to start tapping!', 'info');
       
-      // Reset session if disconnected
       if (sessionActive) {
         sessionActive = false;
         tapCount = 0;
@@ -474,17 +395,45 @@ watchAccount(wagmiConfig, {
   }
 });
 
-// Initialize App
+// Initialize App - SDK FIRST!
 (async () => {
   try {
-    // Initialize Farcaster SDK
-    isFarcasterEnvironment = await isFarcasterEmbed();
-    
-    if (isFarcasterEnvironment) {
-      console.log('🎯 Running in Farcaster mini app');
-      await initializeFarcasterSDK();
+    // STEP 1: Initialize Farcaster SDK FIRST (blocking)
+    try {
+      console.log('Initializing Farcaster SDK...');
+      await sdk.actions.ready({ disableNativeGestures: true });
+      console.log('✅ Farcaster SDK ready');
+      isFarcasterEnvironment = true;
       
-      // Try Farcaster auto-connect
+      // Auto-prompt to add mini app (non-blocking)
+      const hasPromptedAddApp = sessionStorage.getItem('hasPromptedAddApp');
+      if (!hasPromptedAddApp) {
+        try {
+          console.log('Auto-prompting add app...');
+          await sdk.actions.addMiniApp();
+          sessionStorage.setItem('hasPromptedAddApp', 'true');
+          console.log('App added successfully!');
+        } catch (error) {
+          console.log('Add app prompt dismissed or failed:', error.name);
+          sessionStorage.setItem('hasPromptedAddApp', 'true');
+        }
+      }
+      
+    } catch (e) {
+      console.log('Not in Farcaster environment or SDK failed:', e);
+      isFarcasterEnvironment = false;
+    }
+    
+    // STEP 2: Load contract
+    console.log('🚀 App starting...');
+    const loaded = await loadContract();
+    if (!loaded) {
+      setStatus('❌ Failed to load contract. Please refresh.', 'error');
+      return;
+    }
+    
+    // STEP 3: Try Farcaster auto-connect
+    if (isFarcasterEnvironment) {
       try {
         const farcasterConnector = wagmiConfig.connectors.find(c => c.id === 'farcasterMiniApp');
         if (farcasterConnector) {
@@ -493,20 +442,11 @@ watchAccount(wagmiConfig, {
           console.log('✅ Auto-connected via Farcaster:', userAddress);
         }
       } catch (e) {
-        console.log('Farcaster auto-connect failed:', e);
+        console.log('Farcaster auto-connect skipped:', e);
       }
-    } else {
-      console.log('🌐 Running in browser');
     }
     
-    // Load contract
-    const loaded = await loadContract();
-    if (!loaded) {
-      setStatus('❌ Failed to load contract. Please refresh.', 'error');
-      return;
-    }
-    
-    // Check existing connection
+    // STEP 4: Check existing connection
     const currentAccount = getAccount(wagmiConfig);
     if (currentAccount.isConnected && currentAccount.address) {
       userAddress = currentAccount.address;
@@ -520,7 +460,7 @@ watchAccount(wagmiConfig, {
       await updateStats();
     }
     
-    // Create particles
+    // STEP 5: Create particles
     createParticles();
     
   } catch (error) {
