@@ -1,0 +1,31 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjYxMjA2NiwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDg4ZDA1OGRCNmUwRjRmN2M5NjI0NDdGNTJDYTlkYUZiNUJhNzMyQWEifQ",
+    "payload": "eyJkb21haW4iOiJjZWxvLW5mdC1waGkudmVyY2VsLmFwcCJ9",
+    "signature": "MHg1YTExN2ZiNGE5ZmQ3Y2EyYmY0ZjIyMjJhZjM3MWU4ZmZmYjEyZmQ2YTIxNTBhOTdjNDcwNTc3ODgyNDYxY2UzMDJlOWQ3ODdlZWVlODM5MmMzMjZiNTY0NDYzNTMzNzc3NDU1MTdhNjU3YWRhNzNmN2QyMWE4ZDU2ZGQ4NDU3MzFj"
+  },
+   "baseBuilder": {
+    "allowedAddresses": ["0xA5f2c343813B6fb6fE947C2C4759F2c421a346a7"]
+   },
+  "miniapp": {
+    "name": "Celo NFT",
+    "version": "1",
+    "iconUrl": "https://celo-nft-phi.vercel.app/icon.png",
+    "homeUrl": "https://celo-nft-phi.vercel.app",
+    "imageUrl": "https://celo-nft-phi.vercel.app/image.png",
+    "buttonTitle": "Celo NFT",
+    "splashImageUrl": "https://celo-nft-phi.vercel.app/splash.png",
+    "splashBackgroundColor": "#FFFF66",
+    "webhookUrl": "https://celo-nft-phi.vercel.app/api/webhook",
+    "subtitle": "Mintable Collection on Celo",
+    "description": "CeloNFT: A community-driven ERC-721 on Celo. Mint unique on-chain NFTs with custom metadata, fully permissionless and transparent.",
+    "primaryCategory": "art-creativity",
+    "tags": [
+      "celonft",
+      "celo",
+      "nft",
+      "free",
+      "mint"
+    ]
+  }
+}
