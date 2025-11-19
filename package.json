@@ -1,0 +1,27 @@
+{
+  "name": "tap-to-earn",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@farcaster/miniapp-sdk": "latest",
+    "@farcaster/miniapp-wagmi-connector": "latest",
+    "@reown/appkit": "^1.8.14",
+    "@reown/appkit-adapter-wagmi": "^1.8.14",
+    "@vercel/kv": "^3.0.0",
+    "@wagmi/core": "^2.13.4",
+    "buffer": "^6.0.3",
+    "canvas-confetti": "^1.9.3",
+    "process": "^0.11.10",
+    "stream-browserify": "^3.0.0",
+    "util": "^0.12.5",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
